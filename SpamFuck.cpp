@@ -4,6 +4,7 @@
 #include <queue>
 #include <functional>
 #include <stack>
+#include <array>
 
 // Am i using too many unsigned ints?
 std::array<uint8_t, 30000> cells = {};
@@ -44,19 +45,22 @@ bool print();
 bool open();
 bool close();
 
+std::string openCmd = "shallots";
+std::string closeCmd = "aubergines";
+
 std::map<std::string, std::function<bool(void)>> commands = {
-    {"spam", add},
-    {"egg", subtract},
-    {"sausage", left},
-    {"bacon", right},
-    {"tomato", read},
-    {"bakedbeans", print},
-    {"shallots", open},
-    {"aubergines", close}
+    {"spam", add}, // +
+    {"egg", subtract}, // -
+    {"sausage", left}, // <
+    {"bacon", right}, // >
+    {"tomato", read}, // ,
+    {"bakedbeans", print}, // .
+    {"shallots", open}, // [
+    {"aubergines", close} // ]
 };
 // to this a bit too boilerplate-y?
 
-int main(int argc, char const *argv[])
+int main(int argc, char const* argv[])
 {
     if (argc < 2) {
         std::cerr << "you need to pass a file name/path as the first argument";
@@ -70,7 +74,7 @@ int main(int argc, char const *argv[])
     }
 
     char data;
-    while(sourceCode.get(data)) {
+    while (sourceCode.get(data)) {
         colNum++;
         if (data == '\n') {
             lnNum++;
@@ -84,13 +88,13 @@ int main(int argc, char const *argv[])
             if (data != kv.first[0]) {
                 continue;
             }
-            
+
             int cmndLenMinusOne = kv.first.size() - 1;
-            
+
             char buffer[10];
             sourceCode.read(buffer, cmndLenMinusOne);
             buffer[cmndLenMinusOne] = '\0';
-            
+
             if (sourceCode.eof()) {
                 sourceCode.clear();
                 sourceCode.seekg(pos);
@@ -109,6 +113,7 @@ int main(int argc, char const *argv[])
                 return EXIT_FAILURE;
             }
             colNum += sourceCode.gcount();
+            break;
         }
     }
     if (openingBrackets.size() != 0) {
@@ -170,15 +175,33 @@ bool open() {
     char data;
     while (sourceCode.get(data)) {
         colNum++;
-        if (data == '[') {
-            depth++;
-        }
-        else if (data == ']') {
-            if (depth == 0) {
-                closingFound = true;
-                break;
+        if (data == 's' || data == 'a') {
+            std::streampos pos = sourceCode.tellg();
+
+            char buffer[10];
+            sourceCode.read(buffer, 9);
+            buffer[sourceCode.gcount()] = '\0';
+
+            if (sourceCode.eof()) {
+                sourceCode.clear();
+                sourceCode.seekg(pos);
             }
-            depth--;
+
+            if (openCmd.compare(1, openCmd.size() - 1, buffer, openCmd.size() - 1) == 0) {
+                depth++;
+                colNum += sourceCode.gcount();
+            }
+            else if (closeCmd.compare(1, closeCmd.size() - 1, buffer, closeCmd.size() - 1) == 0) {
+                if (depth == 0) {
+                    closingFound = true;
+                    colNum += sourceCode.gcount();
+                    break;
+                }
+                depth--;
+                colNum += sourceCode.gcount();
+            } else {
+                sourceCode.seekg(pos);
+            }
         }
         else if (data == '\n') {
             lnNum++;
@@ -202,7 +225,11 @@ bool close() {
     if (cells[pointer] != 0) {
         sourceCode.seekg(openingBrackets.top().strmPos);
         lnNum = openingBrackets.top().lnNum;
-        colNum = openingBrackets.top().colNum;
+        // the -2 makes it so when the length-1 of aubergines is added after 
+        // the command is executed that the colnum indicator won't be off
+        // its -2 not -1 because there will be another increment of colnum
+        // once it rolls around to the next command
+        colNum = openingBrackets.top().colNum - 2;
         return true;
     }
     openingBrackets.pop();
